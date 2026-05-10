@@ -1,0 +1,183 @@
+{
+  "name": "Logistics Live Tracking – Supabase + WhatsApp ETA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "driver-tracking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook – Clappia Driver App",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "clappia-driver-tracking"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "trucks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "truck_id",
+              "keyValue": "={{ $json.body.truck_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "current_status",
+              "fieldValue": "={{ $json.body.status }}"
+            },
+            {
+              "fieldId": "latitude",
+              "fieldValue": "={{ $json.body.latitude }}"
+            },
+            {
+              "fieldId": "longitude",
+              "fieldValue": "={{ $json.body.longitude }}"
+            },
+            {
+              "fieldId": "speed_kmh",
+              "fieldValue": "={{ $json.body.speed_kmh }}"
+            },
+            {
+              "fieldId": "eta_minutes",
+              "fieldValue": "={{ $json.body.eta_minutes }}"
+            },
+            {
+              "fieldId": "last_updated_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Supabase – Update Truck",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendTemplate",
+        "phoneNumberId": "={{ $vars.WHATSAPP_PHONE_NUMBER_ID }}",
+        "recipientPhoneNumber": "={{ $('Webhook – Clappia Driver App').item.json.body.customer_phone }}",
+        "templateName": "logistics_eta_update",
+        "languageCode": "en_US",
+        "components": {
+          "componentsUi": {
+            "componentValues": [
+              {
+                "type": "body",
+                "parameters": {
+                  "parametersUi": {
+                    "parameterValues": [
+                      {
+                        "type": "text",
+                        "text": "={{ $('Webhook – Clappia Driver App').item.json.body.customer_name }}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "={{ $('Webhook – Clappia Driver App').item.json.body.shipment_id }}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "={{ $('Webhook – Clappia Driver App').item.json.body.eta_minutes + ' minutes' }}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "={{ $('Webhook – Clappia Driver App').item.json.body.driver_name }}"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "WhatsApp – Send ETA to Customer",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "WHATSAPP_CREDENTIAL_ID",
+          "name": "WhatsApp Business Cloud"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, truck_id: $('Webhook – Clappia Driver App').item.json.body.truck_id, timestamp: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Webhook – Clappia Driver App": {
+      "main": [
+        [
+          {
+            "node": "Supabase – Update Truck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase – Update Truck": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp – Send ETA to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp – Send ETA to Customer": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "logistics-tracking-workflow-v1",
+  "tags": ["logistics", "tracking", "whatsapp", "supabase"]
+}
